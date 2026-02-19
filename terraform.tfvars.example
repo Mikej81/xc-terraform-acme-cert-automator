@@ -1,0 +1,120 @@
+# Copy this to terraform.tfvars and fill in your values.
+
+email   = "you@example.com"
+domains = ["example.com", "www.example.com"]
+
+# ── ACME CA selection ────────────────────────────────────────────────
+# Start with staging to avoid rate limits, then switch to prod:
+acme_server_url = "https://acme-staging-v02.api.letsencrypt.org/directory"
+# acme_server_url = "https://acme-v02.api.letsencrypt.org/directory"
+#
+# Other ACME CAs (require EAB — see eab_key_id / eab_hmac_key below):
+# acme_server_url = "https://acme.zerossl.com/v2/DV90"                  # ZeroSSL
+# acme_server_url = "https://dv.acme-v02.api.pki.goog/directory"        # Google Trust Services
+# acme_server_url = "https://api.buypass.com/acme/directory"             # BuyPass
+
+# External Account Binding — only needed for ZeroSSL, Google, etc.
+# eab_key_id   = "your-eab-key-id"
+# eab_hmac_key = "your-eab-hmac-base64"
+
+# ── Output control ────────────────────────────────────────────────
+# create_local_pfx      = true   # set false to skip writing PFX to disk
+# create_xc_certificates = true  # set false to issue certs without pushing to XC
+
+# Where to write the PKCS#12 bundle (only used when create_local_pfx is true)
+output_dir = "./certs"
+
+# Password for the output PKCS#12 (.pfx) file
+p12_password = "00000000"
+
+# RSA (default, wider compat) or ECDSA (smaller, faster)
+key_algorithm = "RSA"
+rsa_bits      = 4096
+
+# ── Certificate lifecycle ────────────────────────────────────────────
+min_days_remaining = 30    # renew when fewer than N days remain
+cert_timeout       = 300   # seconds to wait for ACME operations
+pre_check_delay    = 0     # seconds to wait before checking DNS propagation
+# recursive_nameservers = ["8.8.8.8:53", "1.1.1.1:53"]  # override system DNS
+
+# ── DNS challenge provider ───────────────────────────────────────────
+# Provider name (lego DNS provider): infoblox, cloudflare, route53, azuredns, gcloud, etc.
+dns_provider = "infoblox"
+
+# Option A: InfoBlox — use the dedicated variables (backward compatible)
+infoblox_host         = "gridmaster.example.com"
+infoblox_username     = "admin"
+infoblox_password     = "changeme"
+infoblox_wapi_version = "2.11"
+infoblox_port         = "443"
+infoblox_ssl_verify   = "true"   # set "false" if grid uses self-signed cert
+infoblox_dns_view     = "default"
+
+# Option B: Any provider — use dns_provider_config (overrides infoblox_* vars)
+# Uncomment ONE of these blocks and set dns_provider above to match.
+#
+# --- Cloudflare ---
+# dns_provider = "cloudflare"
+# dns_provider_config = {
+#   CF_DNS_API_TOKEN = "your-cloudflare-api-token"
+#   # Or use global API key:
+#   # CF_API_EMAIL = "you@example.com"
+#   # CF_API_KEY   = "your-global-api-key"
+# }
+#
+# --- AWS Route 53 ---
+# dns_provider = "route53"
+# dns_provider_config = {
+#   AWS_ACCESS_KEY_ID     = "AKIA..."
+#   AWS_SECRET_ACCESS_KEY = "..."
+#   AWS_REGION            = "us-east-1"
+#   AWS_HOSTED_ZONE_ID    = "Z1234..."   # optional, speeds up lookup
+#   # Or use a named profile from ~/.aws/credentials instead of keys:
+#   # AWS_PROFILE = "my-profile"
+# }
+#
+# --- Azure DNS ---
+# dns_provider = "azuredns"
+# dns_provider_config = {
+#   AZURE_CLIENT_ID       = "..."
+#   AZURE_CLIENT_SECRET   = "..."
+#   AZURE_TENANT_ID       = "..."
+#   AZURE_SUBSCRIPTION_ID = "..."
+#   AZURE_RESOURCE_GROUP  = "..."
+# }
+#
+# --- Google Cloud DNS ---
+# dns_provider = "gcloud"
+# dns_provider_config = {
+#   GCE_PROJECT              = "my-project"
+#   GCE_SERVICE_ACCOUNT_FILE = "/path/to/service-account.json"
+# }
+#
+# --- F5 XC DNS ---
+# dns_provider      = "f5xc"
+# xc_api_token      = "your-xc-api-token"
+# xc_dns_zones      = ["example.com"]
+# xc_dns_group_name = "default"   # optional, defaults to "default"
+# (also requires xc_tenant_url below)
+
+# ── F5 XC credentials ──────────────────────────────────────────────
+# The Volterra provider always initializes, so these are required even
+# if you are not using XC LB discovery. You must also set the
+# VES_P12_PASSWORD environment variable to the same password:
+#   export VES_P12_PASSWORD="changeme"
+xc_tenant_url        = "https://tenant.console.ves.volterra.io/api"
+xc_api_p12_file      = "/path/to/api-credential.p12"
+xc_api_p12_password  = "changeme"
+
+# ── F5 XC Certificate Migration ────────────────────────────────────
+# Run the discovery script once before the first apply. It writes
+# certificates.auto.tfvars.json which Terraform loads automatically:
+#
+#   bash scripts/discover_xc_lbs.sh \
+#     --p12-file /path/to/api-credential.p12 \
+#     --p12-pass changeme \
+#     --tenant-url https://tenant.console.ves.volterra.io/api \
+#     --namespaces production,staging \
+#     --domain-filter example.com
+#
+# Future terraform apply runs only renew expiring certificates.
